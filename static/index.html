@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Construction Material Recommendation System</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js" crossorigin></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+    <script src="https://unpkg.com/papaparse@latest/papaparse.min.js" crossorigin></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        .hover-scale {
+            transition: transform 0.2s;
+        }
+        .hover-scale:hover {
+            transform: scale(1.05);
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #2563eb;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tooltip {
+            visibility: hidden;
+            position: absolute;
+            background: #1f2937;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            top: -30px;
+            left: 0;
+            z-index: 10;
+        }
+        .group:hover .tooltip {
+            visibility: visible;
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 50;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+        .toast-success {
+            background-color: #10b981;
+        }
+        .toast-error {
+            background-color: #ef4444;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+        }
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 16px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+        }
+        .modal-close {
+            float: right;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .modal-close:hover {
+            color: #000;
+        }
+        .modal-content h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .modal-content label {
+            font-size: 0.9rem;
+        }
+        .modal-content input,
+        .modal-content select {
+            font-size: 0.9rem;
+            padding: 0.5rem;
+        }
+        .modal-content .flex.gap-4 {
+            flex-direction: row;
+            gap: 1rem;
+        }
+        @media (max-width: 768px) {
+            .modal-content {
+                margin: 3% auto;
+                padding: 12px;
+                max-width: 90%;
+            }
+            .modal-content h2 {
+                font-size: 1.25rem;
+            }
+            .modal-content label {
+                font-size: 0.85rem;
+            }
+            .modal-content input,
+            .modal-content select {
+                font-size: 0.85rem;
+                padding: 0.4rem;
+            }
+            .modal-content .flex.gap-4 {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .modal-content button {
+                font-size: 0.9rem;
+                padding: 0.5rem;
+            }
+        }
+        @media (max-width: 480px) {
+            .modal-content {
+                margin: 2% auto;
+                padding: 10px;
+                max-width: 95%;
+            }
+            .modal-content h2 {
+                font-size: 1.1rem;
+            }
+            .modal-content label {
+                font-size: 0.8rem;
+            }
+            .modal-content input,
+            .modal-content select {
+                font-size: 0.8rem;
+                padding: 0.3rem;
+            }
+            .modal-content .flex.gap-4 {
+                flex-direction: column;
+                gap: 0.4rem;
+            }
+            .modal-content button {
+                font-size: 0.85rem;
+                padding: 0.4rem;
+            }
+            .modal-close {
+                font-size: 20px;
+            }
+        }
+        /* Old-school table style for recommendations and history */
+        .old-school-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+        .old-school-table th, .old-school-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: left;
+        }
+        .old-school-table th {
+            background-color: #d3d3d3;
+            font-weight: bold;
+        }
+        .old-school-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body className="bg-gray-100 font-sans">
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_URL = '';
+
+        const axiosInstance = axios.create({
+            baseURL: API_URL
+        });
+
+        axiosInstance.interceptors.request.use(
+            (config) => {
+                const token = localStorage.getItem('token');
+                if (token) {
+                    config.headers['Authorization'] = `Bearer ${token}`;
+                }
+                return config;
+            },
+            (error) => Promise.reject(error)
+        );
+
+        axiosInstance.interceptors.response.use(
+            (response) => response,
+            (error) => {
+                if (error.response && error.response.status === 401) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('role');
+                    window.location.reload();
+                }
+                return Promise.reject(error);
+            }
+        );
+
+        const loadFileData = async (filename) => {
+            try {
+                const response = await axios.get(`/${filename}`);
+                return response.data;
+            } catch (error) {
+                console.error('Error loading CSV file:', error);
+                throw new Error('Failed to load CSV file');
+            }
+        };
+
+        // Date formatting helper function with debugging
+        const formatDate = (dateString) => {
+            if (!dateString) {
+                console.warn('formatDate: dateString is empty or null:', dateString);
+                return 'N/A';
+            }
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) {
+                console.warn('formatDate: Invalid date string:', dateString);
+                return 'Invalid Date';
+            }
+            return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZone: 'Asia/Kolkata'
+            });
+        };
+
+        const emailTemplate = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Password Reset OTP</title>
+                <style>
+                    body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+                    .container { max-width: 600px; margin: 50px auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+                    .header { text-align: center; padding-bottom: 20px; }
+                    .otp { font-size: 24px; font-weight: bold; text-align: center; color: #333; margin: 20px 0; }
+                    .footer { text-align: center; margin-top: 20px; color: #777; }
+                </style>
+            </head>
+            <body>
+                <div className="container">
+                    <div className="header">
+                        <h2>Password Reset OTP</h2>
+                        <p>You have requested to reset your password for the Construction Material Recommendation System.</p>
+                    </div>
+                    <p>Please use the following OTP to reset your password:</p>
+                    <div className="otp">{otp}</div>
+                    <p>This OTP is valid for 10 minutes.</p>
+                    <div className="footer">
+                        <p>If you did not request this, please ignore this email.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const App = () => {
+            const [token, setToken] = useState(localStorage.getItem('token') || '');
+            const [role, setRole] = useState(localStorage.getItem('role') || '');
+            const [view, setView] = useState('login');
+            const [profile, setProfile] = useState(null);
+            const [showProfileModal, setShowProfileModal] = useState(false);
+            const [editProfile, setEditProfile] = useState(false);
+            const [toast, setToast] = useState({ message: '', type: '' });
+
+            const showToast = (message, type) => {
+                setToast({ message, type });
+                setTimeout(() => setToast({ message: '', type: '' }), 3000);
+            };
+
+            const handleLogout = () => {
+                setToken('');
+                setRole('');
+                setProfile(null);
+                localStorage.removeItem('token');
+                localStorage.removeItem('role');
+                setView('login');
+                showToast('Logged out successfully', 'success');
+            };
+
+            const fetchProfile = async () => {
+                try {
+                    const res = await axiosInstance.get('/profile');
+                    setProfile(res.data);
+                } catch (err) {
+                    console.error('Failed to fetch profile:', err);
+                    handleLogout();
+                }
+            };
+
+            useEffect(() => {
+                if (token) {
+                    fetchProfile();
+                }
+            }, [token]);
+
+            const handleUpdateProfile = async (updatedProfile) => {
+                try {
+                    await axiosInstance.put('/update-profile', updatedProfile);
+                    await fetchProfile();
+                    setEditProfile(false);
+                    showToast('Profile updated successfully', 'success');
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to update profile', 'error');
+                }
+            };
+
+            if (!token) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-800">
+                        {toast.message && (
+                            <div className={`toast ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>
+                                {toast.message}
+                            </div>
+                        )}
+                        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md fade-in">
+                            <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">Construction Material Recommendation System</h1>
+                            {view === 'login' ? (
+                                <Login setToken={setToken} setRole={setRole} setView={setView} showToast={showToast} />
+                            ) : view === 'register' ? (
+                                <Register setView={setView} showToast={showToast} />
+                            ) : (
+                                <ForgotPassword setView={setView} showToast={showToast} emailTemplate={emailTemplate} />
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-100">
+                    {toast.message && (
+                        <div className={`toast ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>
+                            {toast.message}
+                        </div>
+                    )}
+                    <nav className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 shadow-lg flex justify-between items-center">
+                        <h1 className="text-2xl font-bold tracking-tight">Construction Material Recommendation System</h1>
+                        <div className="flex items-center gap-4">
+                            {profile && (
+                                <div className="text-sm flex items-center gap-3">
+                                    <span className="cursor-pointer hover:underline" onClick={() => setShowProfileModal(true)}>
+                                        {profile.name} ({profile.role})
+                                    </span>
+                                </div>
+                            )}
+                            <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg transition hover-scale">
+                                Logout
+                            </button>
+                        </div>
+                    </nav>
+
+                    {showProfileModal && (
+                        <div className="modal" style={{ display: 'block' }}>
+                            <div className="modal-content">
+                                <span className="modal-close" onClick={() => setShowProfileModal(false)}>×</span>
+                                <h2 className="text-2xl font-bold mb-4">User Profile</h2>
+                                {editProfile ? (
+                                    <EditProfileForm
+                                        profile={profile}
+                                        onSave={(updatedProfile) => {
+                                            handleUpdateProfile(updatedProfile);
+                                            setShowProfileModal(false);
+                                        }}
+                                        onCancel={() => setEditProfile(false)}
+                                    />
+                                ) : (
+                                    <div>
+                                        <p><strong>Username:</strong> {profile.username}</p>
+                                        <p><strong>Name:</strong> {profile.name}</p>
+                                        <p><strong>Email:</strong> {profile.email}</p>
+                                        <p><strong>Mobile Number:</strong> {profile.mobile_number}</p>
+                                        <button
+                                            onClick={() => setEditProfile(true)}
+                                            className="mt-4 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale"
+                                        >
+                                            Edit Profile
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="container mx-auto p-6">
+                        {role === 'admin' ? <AdminDashboard token={token} showToast={showToast} /> : <UserDashboard token={token} showToast={showToast} />}
+                    </div>
+                </div>
+            );
+        };
+
+        const EditProfileForm = ({ profile, onSave, onCancel }) => {
+            const [formData, setFormData] = useState({
+                name: profile.name,
+                email: profile.email,
+                mobile_number: profile.mobile_number
+            });
+            const [errors, setErrors] = useState({});
+
+            const validateForm = () => {
+                const newErrors = {};
+                if (!formData.name) newErrors.name = 'Name is required';
+                if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Valid email is required';
+                if (!formData.mobile_number || !/^\d{10}$/.test(formData.mobile_number)) newErrors.mobile_number = 'Mobile number must be exactly 10 digits';
+                setErrors(newErrors);
+                return Object.keys(newErrors).length === 0;
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (validateForm()) {
+                    onSave(formData);
+                }
+            };
+
+            return (
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Name</label>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Email</label>
+                        <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Mobile Number</label>
+                        <input
+                            type="text"
+                            value={formData.mobile_number}
+                            onChange={(e) => setFormData({ ...formData, mobile_number: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.mobile_number && <p className="text-red-500 text-sm">{errors.mobile_number}</p>}
+                    </div>
+                    <div className="flex gap-4">
+                        <button type="submit" className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                            Save
+                        </button>
+                        <button type="button" onClick={onCancel} className="p-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition hover-scale">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            );
+        };
+
+        const Login = ({ setToken, setRole, setView, showToast }) => {
+            const [formData, setFormData] = useState({ username: '', password: '' });
+            const [errors, setErrors] = useState({});
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const newErrors = {};
+                if (!formData.username) newErrors.username = 'Username is required';
+                if (!formData.password) newErrors.password = 'Password is required';
+                setErrors(newErrors);
+                if (Object.keys(newErrors).length > 0) return;
+
+                try {
+                    const res = await axiosInstance.post('/login', formData);
+                    setToken(res.data.token);
+                    setRole(res.data.role);
+                    localStorage.setItem('token', res.data.token);
+                    localStorage.setItem('role', res.data.role);
+                    showToast('Logged in successfully', 'success');
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Login failed', 'error');
+                }
+            };
+
+            return (
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Username</label>
+                        <input
+                            type="text"
+                            value={formData.username}
+                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.username && <p className="text-red-500 text-sm">{errors.username}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Password</label>
+                        <input
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
+                    </div>
+                    <button type="submit" className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                        Login
+                    </button>
+                    <div className="mt-4 text-center">
+                        <p>
+                            Don't have an account?{' '}
+                            <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => setView('register')}>
+                                Register
+                            </span>
+                        </p>
+                        <p>
+                            Forgot Password?{' '}
+                            <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => setView('forgot')}>
+                                Reset Password
+                            </span>
+                        </p>
+                    </div>
+                </form>
+            );
+        };
+
+        const Register = ({ setView, showToast }) => {
+            const [formData, setFormData] = useState({
+                username: '',
+                password: '',
+                email: '',
+                name: '',
+                mobile_number: ''
+            });
+            const [errors, setErrors] = useState({});
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                const newErrors = {};
+                if (!formData.username) newErrors.username = 'Username is required';
+                if (!formData.password || formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+                if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Valid email is required';
+                if (!formData.name) newErrors.name = 'Name is required';
+                if (!formData.mobile_number || !/^\d{10}$/.test(formData.mobile_number)) newErrors.mobile_number = 'Mobile number must be exactly 10 digits';
+                setErrors(newErrors);
+                if (Object.keys(newErrors).length > 0) return;
+
+                try {
+                    await axiosInstance.post('/register', formData);
+                    showToast('Registration successful, awaiting admin approval', 'success');
+                    setView('login');
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Registration failed', 'error');
+                }
+            };
+
+            return (
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Username</label>
+                        <input
+                            type="text"
+                            value={formData.username}
+                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.username && <p className="text-red-500 text-sm">{errors.username}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Password</label>
+                        <input
+                            type="password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Email</label>
+                        <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Name</label>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700">Mobile Number</label>
+                        <input
+                            type="text"
+                            value={formData.mobile_number}
+                            onChange={(e) => setFormData({ ...formData, mobile_number: e.target.value })}
+                            className="w-full p-2 border rounded-lg"
+                        />
+                        {errors.mobile_number && <p className="text-red-500 text-sm">{errors.mobile_number}</p>}
+                    </div>
+                    <button type="submit" className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                        Register
+                    </button>
+                    <div className="mt-4 text-center">
+                        <p>
+                            Already have an account?{' '}
+                            <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => setView('login')}>
+                                Login
+                            </span>
+                        </p>
+                    </div>
+                </form>
+            );
+        };
+
+        const ForgotPassword = ({ setView, showToast, emailTemplate }) => {
+            const [step, setStep] = useState('request');
+            const [formData, setFormData] = useState({ username: '', otp: '', new_password: '' });
+            const [errors, setErrors] = useState({});
+
+            const handleRequestOTP = async (e) => {
+                e.preventDefault();
+                const newErrors = {};
+                if (!formData.username) newErrors.username = 'Username is required';
+                setErrors(newErrors);
+                if (Object.keys(newErrors).length > 0) return;
+
+                try {
+                    await axiosInstance.post('/forgot-password', { username: formData.username, emailTemplate });
+                    showToast('OTP sent to your email', 'success');
+                    setStep('reset');
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to send OTP', 'error');
+                }
+            };
+
+            const handleResetPassword = async (e) => {
+                e.preventDefault();
+                const newErrors = {};
+                if (!formData.otp) newErrors.otp = 'OTP is required';
+                if (!formData.new_password || formData.new_password.length < 6) newErrors.new_password = 'New password must be at least 6 characters';
+                setErrors(newErrors);
+                if (Object.keys(newErrors).length > 0) return;
+
+                try {
+                    await axiosInstance.post('/reset-password', { otp: formData.otp, new_password: formData.new_password });
+                    showToast('Password reset successfully', 'success');
+                    setView('login');
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to reset password', 'error');
+                }
+            };
+
+            return (
+                <div>
+                    {step === 'request' ? (
+                        <form onSubmit={handleRequestOTP}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Username</label>
+                                <input
+                                    type="text"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.username && <p className="text-red-500 text-sm">{errors.username}</p>}
+                            </div>
+                            <button type="submit" className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                                Request OTP
+                            </button>
+                            <div className="mt-4 text-center">
+                                <p>
+                                    Back to{' '}
+                                    <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => setView('login')}>
+                                        Login
+                                    </span>
+                                </p>
+                            </div>
+                        </form>
+                    ) : (
+                        <form onSubmit={handleResetPassword}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">OTP</label>
+                                <input
+                                    type="text"
+                                    value={formData.otp}
+                                    onChange={(e) => setFormData({ ...formData, otp: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.otp && <p className="text-red-500 text-sm">{errors.otp}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">New Password</label>
+                                <input
+                                    type="password"
+                                    value={formData.new_password}
+                                    onChange={(e) => setFormData({ ...formData, new_password: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.new_password && <p className="text-red-500 text-sm">{errors.new_password}</p>}
+                            </div>
+                            <button type="submit" className="w-full p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                                Reset Password
+                            </button>
+                            <div className="mt-4 text-center">
+                                <p>
+                                    Back to{' '}
+                                    <span className="text-blue-600 cursor-pointer hover:underline" onClick={() => setView('login')}>
+                                        Login
+                                    </span>
+                                </p>
+                            </div>
+                        </form>
+                    )}
+                </div>
+            );
+        };
+
+        const AdminDashboard = ({ token, showToast }) => {
+            const [users, setUsers] = useState([]);
+            const [projects, setProjects] = useState([]);
+            const [activity, setActivity] = useState([]);
+            const [suppliers, setSuppliers] = useState([]);
+            const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
+            const [showEditSupplierModal, setShowEditSupplierModal] = useState(null);
+            const [selectedUsername, setSelectedUsername] = useState('');
+
+            const fetchUsers = async () => {
+                try {
+                    const res = await axiosInstance.get('/admin/users');
+                    setUsers(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch users', 'error');
+                }
+            };
+
+            const fetchProjects = async () => {
+                try {
+                    const res = await axiosInstance.get('/projects');
+                    setProjects(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch projects', 'error');
+                }
+            };
+
+            const fetchActivity = async () => {
+                try {
+                    const params = selectedUsername ? { username: selectedUsername } : {};
+                    const res = await axiosInstance.get('/admin/user-activity', { params });
+                    setActivity(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch activity', 'error');
+                }
+            };
+
+            const fetchSuppliers = async () => {
+                try {
+                    const res = await axiosInstance.get('/suppliers');
+                    setSuppliers(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch suppliers', 'error');
+                }
+            };
+
+            useEffect(() => {
+                fetchUsers();
+                fetchProjects();
+                fetchActivity();
+                fetchSuppliers();
+            }, [selectedUsername]);
+
+            const handleApproveUser = async (username) => {
+                try {
+                    await axiosInstance.post('/admin/approve-user', { username });
+                    showToast(`User ${username} approved`, 'success');
+                    fetchUsers();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to approve user', 'error');
+                }
+            };
+
+            const handleDeleteUser = async (username) => {
+                if (window.confirm(`Are you sure you want to delete user ${username}?`)) {
+                    try {
+                        await axiosInstance.post('/admin/delete-user', { username });
+                        showToast(`User ${username} deleted`, 'success');
+                        fetchUsers();
+                    } catch (err) {
+                        showToast(err.response?.data?.error || 'Failed to delete user', 'error');
+                    }
+                }
+            };
+
+            const handlePromoteToAdmin = async (username) => {
+                try {
+                    await axiosInstance.post('/promote-to-admin', { username });
+                    showToast(`User ${username} promoted to admin`, 'success');
+                    fetchUsers();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to promote user', 'error');
+                }
+            };
+
+            const handleDemoteFromAdmin = async (username) => {
+                try {
+                    await axiosInstance.post('/demote-from-admin', { username });
+                    showToast(`User ${username} demoted from admin`, 'success');
+                    fetchUsers();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to demote user', 'error');
+                }
+            };
+
+            const handleAddSupplier = async (supplierData) => {
+                try {
+                    const res = await axiosInstance.post('/supplier', supplierData);
+                    showToast('Supplier added successfully', 'success');
+                    setShowAddSupplierModal(false);
+                    fetchSuppliers();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to add supplier', 'error');
+                }
+            };
+
+            const handleEditSupplier = async (supplierData) => {
+                try {
+                    await axiosInstance.put(`/supplier/${showEditSupplierModal.supplier_id}`, supplierData);
+                    showToast('Supplier updated successfully', 'success');
+                    setShowEditSupplierModal(null);
+                    fetchSuppliers();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to update supplier', 'error');
+                }
+            };
+
+            const handleDeleteSupplier = async (supplier_id) => {
+                if (window.confirm(`Are you sure you want to delete supplier ${supplier_id}?`)) {
+                    try {
+                        await axiosInstance.delete(`/supplier/${supplier_id}`);
+                        showToast('Supplier deleted successfully', 'success');
+                        fetchSuppliers();
+                    } catch (err) {
+                        showToast(err.response?.data?.error || 'Failed to delete supplier', 'error');
+                    }
+                }
+            };
+
+            return (
+                <div>
+                    <h2 className="text-3xl font-bold mb-6 text-gray-800">Admin Dashboard</h2>
+
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold mb-4">Users</h3>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">Username</th>
+                                        <th className="p-2">Role</th>
+                                        <th className="p-2">Approved</th>
+                                        <th className="p-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.map(user => (
+                                        <tr key={user.username} className="border-b">
+                                            <td className="p-2">{user.username}</td>
+                                            <td className="p-2">{user.role}</td>
+                                            <td className="p-2">{user.approved ? 'Yes' : 'No'}</td>
+                                            <td className="p-2 flex gap-2">
+                                                {!user.approved && (
+                                                    <button onClick={() => handleApproveUser(user.username)} className="p-1 bg-green-500 text-white rounded hover:bg-green-600 transition hover-scale">
+                                                        Approve
+                                                    </button>
+                                                )}
+                                                {user.role !== 'admin' && (
+                                                    <button onClick={() => handlePromoteToAdmin(user.username)} className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition hover-scale">
+                                                        Promote to Admin
+                                                    </button>
+                                                )}
+                                                {user.role === 'admin' && (
+                                                    <button onClick={() => handleDemoteFromAdmin(user.username)} className="p-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition hover-scale">
+                                                        Demote
+                                                    </button>
+                                                )}
+                                                <button onClick={() => handleDeleteUser(user.username)} className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition hover-scale">
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold mb-4">Projects</h3>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">Project ID</th>
+                                        <th className="p-2">User</th>
+                                        <th className="p-2">Category</th>
+                                        <th className="p-2">Created At</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {projects.map(project => (
+                                        <tr key={project.project_id} className="border-b">
+                                            <td className="p-2">{project.project_id}</td>
+                                            <td className="p-2">{project.user}</td>
+                                            <td className="p-2">{project.category}</td>
+                                            <td className="p-2">{formatDate(project.created_at)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold mb-4">Supplier Database</h3>
+                        <button onClick={() => setShowAddSupplierModal(true)} className="mb-4 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                            Add Supplier
+                        </button>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">Supplier ID</th>
+                                        <th className="p-2">Name</th>
+                                        <th className="p-2">Location</th>
+                                        <th className="p-2">Material Type</th>
+                                        <th className="p-2">Contact</th>
+                                        <th className="p-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {suppliers.map(supplier => (
+                                        <tr key={supplier.supplier_id} className="border-b">
+                                            <td className="p-2">{supplier.supplier_id}</td>
+                                            <td className="p-2">{supplier.name}</td>
+                                            <td className="p-2">{supplier.location}</td>
+                                            <td className="p-2">{supplier.material_type}</td>
+                                            <td className="p-2">{supplier.contact}</td>
+                                            <td className="p-2 flex gap-2">
+                                                <button onClick={() => setShowEditSupplierModal(supplier)} className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition hover-scale">
+                                                    Edit
+                                                </button>
+                                                <button onClick={() => handleDeleteSupplier(supplier.supplier_id)} className="p-1 bg-red-500 text-white rounded hover:bg-red-600 transition hover-scale">
+                                                    Delete
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {showAddSupplierModal && (
+                        <SupplierFormModal
+                            onSave={handleAddSupplier}
+                            onCancel={() => setShowAddSupplierModal(false)}
+                        />
+                    )}
+
+                    {showEditSupplierModal && (
+                        <SupplierFormModal
+                            supplier={showEditSupplierModal}
+                            onSave={handleEditSupplier}
+                            onCancel={() => setShowEditSupplierModal(null)}
+                        />
+                    )}
+
+                    <div>
+                        <h3 className="text-xl font-semibold mb-4">User Activity</h3>
+                        <div className="mb-4">
+                            <label className="block text-gray-700">Filter by Username</label>
+                            <select
+                                value={selectedUsername}
+                                onChange={(e) => setSelectedUsername(e.target.value)}
+                                className="w-full p-2 border rounded-lg"
+                            >
+                                <option value="">All Users</option>
+                                {users.map(user => (
+                                    <option key={user.username} value={user.username}>{user.username}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">Username</th>
+                                        <th className="p-2">Action</th>
+                                        <th className="p-2">Timestamp</th>
+                                        <th className="p-2">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {activity.map((log, index) => (
+                                        <tr key={index} className="border-b">
+                                            <td className="p-2">{log.username}</td>
+                                            <td className="p-2">{log.action}</td>
+                                            <td className="p-2">{formatDate(log.timestamp)}</td>
+                                            <td className="p-2">{log.details}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const SupplierFormModal = ({ supplier, onSave, onCancel }) => {
+            const [formData, setFormData] = useState(
+                supplier || {
+                    name: '',
+                    location: '',
+                    material_type: '',
+                    contact: ''
+                }
+            );
+            const [errors, setErrors] = useState({});
+
+            const validateForm = () => {
+                const newErrors = {};
+                if (!formData.name) newErrors.name = 'Name is required';
+                if (!formData.location) newErrors.location = 'Location is required';
+                if (!formData.material_type) newErrors.material_type = 'Material type is required';
+                if (!formData.contact) newErrors.contact = 'Contact is required';
+                else if (formData.contact.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.contact)) {
+                    newErrors.contact = 'Valid email is required';
+                }
+                setErrors(newErrors);
+                return Object.keys(newErrors).length === 0;
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (validateForm()) {
+                    onSave(formData);
+                }
+            };
+
+            return (
+                <div className="modal" style={{ display: 'block' }}>
+                    <div className="modal-content">
+                        <span className="modal-close" onClick={onCancel}>×</span>
+                        <h2 className="text-2xl font-bold mb-4">{supplier ? 'Edit Supplier' : 'Add Supplier'}</h2>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Name</label>
+                                <input
+                                    type="text"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.name && <p className="text-red-500 text-sm">{errors.name}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Location</label>
+                                <input
+                                    type="text"
+                                    value={formData.location}
+                                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.location && <p className="text-red-500 text-sm">{errors.location}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Material Type</label>
+                                <input
+                                    type="text"
+                                    value={formData.material_type}
+                                    onChange={(e) => setFormData({ ...formData, material_type: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.material_type && <p className="text-red-500 text-sm">{errors.material_type}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Contact</label>
+                                <input
+                                    type="text"
+                                    value={formData.contact}
+                                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.contact && <p className="text-red-500 text-sm">{errors.contact}</p>}
+                            </div>
+                            <div className="flex gap-4">
+                                <button type="submit" className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                                    Save
+                                </button>
+                                <button type="button" onClick={onCancel} className="p-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition hover-scale">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const UserDashboard = ({ token, showToast }) => {
+            const [projects, setProjects] = useState([]);
+            const [showProjectModal, setShowProjectModal] = useState(false);
+            const [editProject, setEditProject] = useState(null);
+            const [selectedProject, setSelectedProject] = useState(null);
+            const [materials, setMaterials] = useState([]);
+            const [suppliers, setSuppliers] = useState([]);
+            const [materialFilters, setMaterialFilters] = useState({
+                name: '',
+                minDurability: '',
+                maxDurability: '',
+                minCost: '',
+                maxCost: '',
+                minSuitability: '',
+                maxSuitability: ''
+            });
+
+            const fetchProjects = async () => {
+                try {
+                    const res = await axiosInstance.get('/user/projects');
+                    setProjects(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch projects', 'error');
+                }
+            };
+
+            const fetchMaterials = async () => {
+                try {
+                    const res = await axiosInstance.get('/materials', { params: materialFilters });
+                    setMaterials(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch materials', 'error');
+                }
+            };
+
+            const fetchSuppliers = async () => {
+                try {
+                    const res = await axiosInstance.get('/suppliers');
+                    setSuppliers(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch suppliers', 'error');
+                }
+            };
+
+            useEffect(() => {
+                fetchProjects();
+                fetchMaterials();
+                fetchSuppliers();
+            }, [materialFilters]);
+
+            const handleCreateProject = async (projectData) => {
+                try {
+                    const res = await axiosInstance.post('/project', projectData);
+                    showToast('Project created successfully', 'success');
+                    setShowProjectModal(false);
+                    fetchProjects();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to create project', 'error');
+                }
+            };
+
+            const handleUpdateProject = async (projectData) => {
+                try {
+                    await axiosInstance.put(`/project/${editProject.project_id}`, projectData);
+                    showToast('Project updated successfully', 'success');
+                    setShowProjectModal(false);
+                    setEditProject(null);
+                    fetchProjects();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to update project', 'error');
+                }
+            };
+
+            const handleSelectProject = (project) => {
+                setSelectedProject(project);
+            };
+
+            const handleFilterChange = (e) => {
+                const { name, value } = e.target;
+                setMaterialFilters({ ...materialFilters, [name]: value });
+            };
+
+            return (
+                <div>
+                    <h2 className="text-3xl font-bold mb-6 text-gray-800">User Dashboard</h2>
+
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold mb-4">Projects</h3>
+                        <button onClick={() => setShowProjectModal(true)} className="mb-4 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                            Create Project
+                        </button>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">Project ID</th>
+                                        <th className="p-2">Category</th>
+                                        <th className="p-2">Created At</th>
+                                        <th className="p-2">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {projects.map(project => (
+                                        <tr key={project.project_id} className="border-b">
+                                            <td className="p-2">{project.project_id}</td>
+                                            <td className="p-2">{project.category}</td>
+                                            <td className="p-2">{formatDate(project.created_at)}</td>
+                                            <td className="p-2 flex gap-2">
+                                                <button onClick={() => { setEditProject(project); setShowProjectModal(true); }} className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition hover-scale">
+                                                    Edit
+                                                </button>
+                                                <button onClick={() => handleSelectProject(project)} className="p-1 bg-green-500 text-white rounded hover:bg-green-600 transition hover-scale">
+                                                    View Recommendations
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {showProjectModal && (
+                        <ProjectFormModal
+                            project={editProject}
+                            onSave={editProject ? handleUpdateProject : handleCreateProject}
+                            onCancel={() => { setShowProjectModal(false); setEditProject(null); }}
+                        />
+                    )}
+
+                    {selectedProject && (
+                        <RecommendationsSection project={selectedProject} showToast={showToast} />
+                    )}
+
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold mb-4">Supplier Database</h3>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">Supplier ID</th>
+                                        <th className="p-2">Name</th>
+                                        <th className="p-2">Location</th>
+                                        <th className="p-2">Material Type</th>
+                                        <th className="p-2">Contact</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {suppliers.map(supplier => (
+                                        <tr key={supplier.supplier_id} className="border-b">
+                                            <td className="p-2">{supplier.supplier_id}</td>
+                                            <td className="p-2">{supplier.name}</td>
+                                            <td className="p-2">{supplier.location}</td>
+                                            <td className="p-2">{supplier.material_type}</td>
+                                            <td className="p-2">{supplier.contact}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="mb-8">
+                        <h3 className="text-xl font-semibold mb-4">Materials Database</h3>
+                        <div className="bg-white p-4 rounded-lg shadow-md mb-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-gray-700">Name</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={materialFilters.name}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                        placeholder="Search by name"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700">Min Durability</label>
+                                    <input
+                                        type="number"
+                                        name="minDurability"
+                                        value={materialFilters.minDurability}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700">Max Durability</label>
+                                    <input
+                                        type="number"
+                                        name="maxDurability"
+                                        value={materialFilters.maxDurability}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700">Min Cost</label>
+                                    <input
+                                        type="number"
+                                        name="minCost"
+                                        value={materialFilters.minCost}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700">Max Cost</label>
+                                    <input
+                                        type="number"
+                                        name="maxCost"
+                                        value={materialFilters.maxCost}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700">Min Suitability</label>
+                                    <input
+                                        type="number"
+                                        name="minSuitability"
+                                        value={materialFilters.minSuitability}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700">Max Suitability</label>
+                                    <input
+                                        type="number"
+                                        name="maxSuitability"
+                                        value={materialFilters.maxSuitability}
+                                        onChange={handleFilterChange}
+                                        className="w-full p-2 border rounded-lg"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white p-4 rounded-lg shadow-md">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-200">
+                                        <th className="p-2">ID</th>
+                                        <th className="p-2">Name</th>
+                                        <th className="p-2">Durability</th>
+                                        <th className="p-2">Cost</th>
+                                        <th className="p-2">Suitability</th>
+                                        <th className="p-2">Lead Time</th>
+                                        <th className="p-2">Sustainability</th>
+                                        <th className="p-2">Thermal Conductivity</th>
+                                        <th className="p-2">Compressive Strength</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {materials.map(material => (
+                                        <tr key={material.id} className="border-b">
+                                            <td className="p-2">{material.id}</td>
+                                            <td className="p-2">{material.name}</td>
+                                            <td className="p-2">{material.durability}</td>
+                                            <td className="p-2">{material.cost}</td>
+                                            <td className="p-2">{material.suitability}</td>
+                                            <td className="p-2">{material.lead_time}</td>
+                                            <td className="p-2">{material.sustainability}</td>
+                                            <td className="p-2">{material.thermal_conductivity}</td>
+                                            <td className="p-2">{material.compressive_strength}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const ProjectFormModal = ({ project, onSave, onCancel }) => {
+            const [formData, setFormData] = useState(
+                project || {
+                    category: '',
+                    environmental_suitability: '',
+                    supplier_availability: '',
+                    fire_resistance: '',
+                    durability: '',
+                    cost: '',
+                    lead_time: '',
+                    sustainability: '',
+                    thermal_conductivity: '',
+                    compressive_strength: ''
+                }
+            );
+            const [errors, setErrors] = useState({});
+
+            const validateForm = () => {
+                const newErrors = {};
+                if (!formData.category) newErrors.category = 'Category is required';
+                if (!formData.environmental_suitability) newErrors.environmental_suitability = 'Environmental suitability is required';
+                if (!formData.supplier_availability) newErrors.supplier_availability = 'Supplier availability is required';
+                if (!formData.fire_resistance) newErrors.fire_resistance = 'Fire resistance is required';
+                if (!formData.durability || formData.durability <= 0) newErrors.durability = 'Durability must be a positive number';
+                if (!formData.cost || formData.cost <= 0) newErrors.cost = 'Cost must be a positive number';
+                if (formData.lead_time && formData.lead_time < 0) newErrors.lead_time = 'Lead time cannot be negative';
+                if (!formData.sustainability || formData.sustainability <= 0) newErrors.sustainability = 'Sustainability must be a positive number';
+                if (!formData.thermal_conductivity || formData.thermal_conductivity <= 0) newErrors.thermal_conductivity = 'Thermal conductivity must be a positive number';
+                if (!formData.compressive_strength || formData.compressive_strength <= 0) newErrors.compressive_strength = 'Compressive strength must be a positive number';
+                setErrors(newErrors);
+                return Object.keys(newErrors).length === 0;
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                if (validateForm()) {
+                    onSave(formData);
+                }
+            };
+
+            return (
+                <div className="modal" style={{ display: 'block' }}>
+                    <div className="modal-content">
+                        <span className="modal-close" onClick={onCancel}>×</span>
+                        <h2 className="text-2xl font-bold mb-4">{project ? 'Edit Project' : 'Create Project'}</h2>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Category</label>
+                                <select
+                                    value={formData.category}
+                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                >
+                                    <option value="">Select Category</option>
+                                    <option value="Residential">Residential</option>
+                                    <option value="Commercial">Commercial</option>
+                                    <option value="Industrial">Industrial</option>
+                                    <option value="Infrastructure">Infrastructure</option>
+                                </select>
+                                {errors.category && <p className="text-red-500 text-sm">{errors.category}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Environmental Suitability</label>
+                                <select
+                                    value={formData.environmental_suitability}
+                                    onChange={(e) => setFormData({ ...formData, environmental_suitability: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                >
+                                    <option value="">Select Suitability</option>
+                                    <option value="All">All</option>
+                                    <option value="Coastal">Coastal</option>
+                                    <option value="Humid">Humid</option>
+                                    <option value="Dry">Dry</option>
+                                </select>
+                                {errors.environmental_suitability && <p className="text-red-500 text-sm">{errors.environmental_suitability}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Supplier Availability</label>
+                                <select
+                                    value={formData.supplier_availability}
+                                    onChange={(e) => setFormData({ ...formData, supplier_availability: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                >
+                                    <option value="">Select Availability</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                                {errors.supplier_availability && <p className="text-red-500 text-sm">{errors.supplier_availability}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Fire Resistance</label>
+                                <select
+                                    value={formData.fire_resistance}
+                                    onChange={(e) => setFormData({ ...formData, fire_resistance: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                >
+                                    <option value="">Select Fire Resistance</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                </select>
+                                {errors.fire_resistance && <p className="text-red-500 text-sm">{errors.fire_resistance}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Durability</label>
+                                <input
+                                    type="number"
+                                    value={formData.durability}
+                                    onChange={(e) => setFormData({ ...formData, durability: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.durability && <p className="text-red-500 text-sm">{errors.durability}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Cost</label>
+                                <input
+                                    type="number"
+                                    value={formData.cost}
+                                    onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.cost && <p className="text-red-500 text-sm">{errors.cost}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Lead Time (days)</label>
+                                <input
+                                    type="number"
+                                    value={formData.lead_time}
+                                    onChange={(e) => setFormData({ ...formData, lead_time: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.lead_time && <p className="text-red-500 text-sm">{errors.lead_time}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Sustainability</label>
+                                <input
+                                    type="number"
+                                    value={formData.sustainability}
+                                    onChange={(e) => setFormData({ ...formData, sustainability: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.sustainability && <p className="text-red-500 text-sm">{errors.sustainability}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Thermal Conductivity</label>
+                                <input
+                                    type="number"
+                                    value={formData.thermal_conductivity}
+                                    onChange={(e) => setFormData({ ...formData, thermal_conductivity: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.thermal_conductivity && <p className="text-red-500 text-sm">{errors.thermal_conductivity}</p>}
+                            </div>
+                            <div className="mb-4">
+                                <label className="block text-gray-700">Compressive Strength</label>
+                                <input
+                                    type="number"
+                                    value={formData.compressive_strength}
+                                    onChange={(e) => setFormData({ ...formData, compressive_strength: e.target.value })}
+                                    className="w-full p-2 border rounded-lg"
+                                />
+                                {errors.compressive_strength && <p className="text-red-500 text-sm">{errors.compressive_strength}</p>}
+                            </div>
+                            <div className="flex gap-4">
+                                <button type="submit" className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale">
+                                    Save
+                                </button>
+                                <button type="button" onClick={onCancel} className="p-2 bg-gray-300 rounded-lg hover:bg-gray-400 transition hover-scale">
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        const RecommendationsSection = ({ project, showToast }) => {
+            const [recommendations, setRecommendations] = useState([]);
+            const [history, setHistory] = useState([]);
+            const [showHistory, setShowHistory] = useState(false);
+            const [loading, setLoading] = useState(false);
+
+            const fetchCurrentRecommendations = async () => {
+                try {
+                    const res = await axiosInstance.get(`/current-recommendations/${project.project_id}`);
+                    console.log('Current Recommendations Response:', res.data);
+                    setRecommendations(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch current recommendations', 'error');
+                }
+            };
+
+            const fetchRecommendationHistory = async () => {
+                try {
+                    const res = await axiosInstance.get(`/recommendations/${project.project_id}`);
+                    setHistory(res.data);
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to fetch recommendation history', 'error');
+                }
+            };
+
+            const generateRecommendations = async () => {
+                setLoading(true);
+                try {
+                    const res = await axiosInstance.get(`/recommend/${project.project_id}`);
+                    setRecommendations(res.data);
+                    showToast('Recommendations generated successfully', 'success');
+                    fetchRecommendationHistory();
+                } catch (err) {
+                    showToast(err.response?.data?.error || 'Failed to generate recommendations', 'error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchCurrentRecommendations();
+                fetchRecommendationHistory();
+            }, []);
+
+            return (
+                <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-4">Recommendations for Project {project.project_id}</h3>
+                    <div className="flex gap-4 mb-4">
+                        <button
+                            onClick={generateRecommendations}
+                            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition hover-scale flex items-center gap-2"
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="spinner"></div>
+                                    Generating...
+                                </>
+                            ) : (
+                                'Generate Recommendations'
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setShowHistory(!showHistory)}
+                            className="p-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition hover-scale"
+                        >
+                            {showHistory ? 'Hide History' : 'Show Recommendation History'}
+                        </button>
+                    </div>
+
+                    <div className="mb-4">
+                        <h4 className="text-lg font-semibold mb-2">Current Recommendations</h4>
+                        {recommendations.length > 0 ? (
+                            <table className="old-school-table">
+                                <thead>
+                                    <tr>
+                                        <th>Material Name</th>
+                                        <th>Durability</th>
+                                        <th>Cost</th>
+                                        <th>Suitability</th>
+                                        <th>Supplier Name</th>
+                                        <th>Supplier Price</th>
+                                        <th>Supplier Availability</th>
+                                        <th>Score</th>
+                                        <th>Created At</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {recommendations.map(rec => (
+                                        <tr key={rec.recommendation_id}>
+                                            <td>{rec.material_name || 'N/A'}</td>
+                                            <td>{rec.durability || 'N/A'}</td>
+                                            <td>{rec.cost || 'N/A'}</td>
+                                            <td>{rec.suitability || 'N/A'}</td>
+                                            <td>{rec.supplier?.name || 'N/A'}</td>
+                                            <td>{rec.supplier?.price || 'N/A'}</td>
+                                            <td>{rec.supplier?.availability || 'N/A'}</td>
+                                            <td>{rec.score ? rec.score.toFixed(2) : 'N/A'}</td>
+                                            <td>{formatDate(rec.created_at)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <p>No current recommendations available. Click "Generate Recommendations" to get started.</p>
+                        )}
+                    </div>
+
+                    {showHistory && (
+                        <div>
+                            <h4 className="text-lg font-semibold mb-2">Recommendation History</h4>
+                            {history.length > 0 ? (
+                                <table className="old-school-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Material Name</th>
+                                            <th>Durability</th>
+                                            <th>Cost</th>
+                                            <th>Suitability</th>
+                                            <th>Supplier Name</th>
+                                            <th>Supplier Price</th>
+                                            <th>Supplier Availability</th>
+                                            <th>Score</th>
+                                            <th>Created At</th>
+                                            <th>Current</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {history.map(rec => (
+                                            <tr key={rec.recommendation_id}>
+                                                <td>{rec.material_name || 'N/A'}</td>
+                                                <td>{rec.durability || 'N/A'}</td>
+                                                <td>{rec.cost || 'N/A'}</td>
+                                                <td>{rec.suitability || 'N/A'}</td>
+                                                <td>{rec.supplier?.name || 'N/A'}</td>
+                                                <td>{rec.supplier?.price || 'N/A'}</td>
+                                                <td>{rec.supplier?.availability || 'N/A'}</td>
+                                                <td>{rec.score ? rec.score.toFixed(2) : 'N/A'}</td>
+                                                <td>{formatDate(rec.created_at)}</td>
+                                                <td>{rec.is_current ? 'Yes' : 'No'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <p>No recommendation history available.</p>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
